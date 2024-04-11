@@ -58,8 +58,11 @@ struct ProgramState {
     bool CameraMouseMovementUpdateEnabled = true;
     glm::vec3 roomPosition = glm::vec3(0.0f);
     float roomScale = 0.5f;
+    glm::vec3 horsePosition = glm::vec3(0.0f);
+    float horseScale = 0.5f;
     PointLight pointLight1;
     PointLight pointLight2;
+    PointLight pointLight3;
     ProgramState()
             : camera(glm::vec3(0.0f, 0.0f, 3.0f)) {}
 
@@ -166,8 +169,11 @@ int main() {
 
     // load models
     // -----------
-    Model ourModel("resources/objects/blacklodge/untitled.obj");
-    ourModel.SetShaderTextureNamePrefix("material.");
+    Model roomModel("resources/objects/blacklodge/untitled.obj");
+    roomModel.SetShaderTextureNamePrefix("material.");
+
+    Model horseModel("resources/objects/horsie/horse.obj");
+    horseModel.SetShaderTextureNamePrefix("material.");
 
     PointLight& pointLight1 = programState->pointLight1;
     pointLight1.position = glm::vec3(5.6f, 8.7f, 26.5f);
@@ -188,6 +194,16 @@ int main() {
     pointLight2.constant = 0.5f;
     pointLight2.linear = 0.09f;
     pointLight2.quadratic = 0.0036f;
+
+    PointLight& pointLight3 = programState->pointLight3;
+    pointLight3.position = glm::vec3(-37.0f, 4.0f, -35.0f);
+    pointLight3.ambient = glm::vec3(0.2, 0.2, 0.2);
+    pointLight3.diffuse = glm::vec3(0.6, 0.6, 0.6);
+    pointLight3.specular = glm::vec3(1.0, 1.0, 1.0);
+
+    pointLight3.constant = 0.5f;
+    pointLight3.linear = 0.09f;
+    pointLight3.quadratic = 0.0036f;
     // draw in wireframe
     //glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 
@@ -229,6 +245,14 @@ int main() {
         ourShader.setFloat("pointLight2.linear", pointLight2.linear);
         ourShader.setFloat("pointLight2.quadratic", pointLight2.quadratic);
 
+        ourShader.setVec3("pointLight3.position", pointLight3.position);
+        ourShader.setVec3("pointLight3.ambient", pointLight3.ambient);
+        ourShader.setVec3("pointLight3.diffuse", pointLight3.diffuse);
+        ourShader.setVec3("pointLight3.specular", pointLight3.specular);
+        ourShader.setFloat("pointLight3.constant", pointLight3.constant);
+        ourShader.setFloat("pointLight3.linear", pointLight3.linear);
+        ourShader.setFloat("pointLight3.quadratic", pointLight3.quadratic);
+
         ourShader.setVec3("viewPosition", programState->camera.Position);
         ourShader.setFloat("material.shininess", 32.0f);
 
@@ -245,7 +269,13 @@ int main() {
                                programState->roomPosition); // translate it down so it's at the center of the scene
         model = glm::scale(model, glm::vec3(programState->roomScale));
         ourShader.setMat4("model", model);
-        ourModel.Draw(ourShader);
+        roomModel.Draw(ourShader);
+
+        model = glm::mat4(1.0f);
+        model = glm::translate(model, glm::vec3(-37.0f, 0.0f, -35.0f));
+        model = glm::scale(model, glm::vec3(0.05f));
+        ourShader.setMat4("model", model);
+        horseModel.Draw(ourShader);
 
         if (programState->ImGuiEnabled)
             DrawImGui(programState);
@@ -329,6 +359,8 @@ void DrawImGui(ProgramState *programState) {
         ImGui::ColorEdit3("Background color", (float *) &programState->clearColor);
         ImGui::DragFloat3("Room position", (float*)&programState->roomPosition);
         ImGui::DragFloat("Room scale", &programState->roomScale, 0.05, 0.1, 4.0);
+        ImGui::DragFloat3("Horse position", (float*)&programState->horsePosition);
+        ImGui::DragFloat("Horse scale", &programState->horseScale, 0.05, 0.1, 4.0);
 
         ImGui::End();
     }
