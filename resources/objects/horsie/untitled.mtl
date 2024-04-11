@@ -1,0 +1,24 @@
+# Blender 3.4.1 MTL File: 'None'
+# www.blender.org
+
+newmtl Horse_Skin
+Ns 25.614450
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+illum 2
+map_Kd Image_2.png
+map_d Image_2.png
+map_Bump -bm 1.000000 Image_3.png
+
+newmtl Tail
+Ns 31.622782
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+illum 2
+map_Kd Image_0.png
+map_d Image_0.png
+map_Bump -bm 1.000000 Image_1.png
