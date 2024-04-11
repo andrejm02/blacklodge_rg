@@ -58,8 +58,8 @@ struct ProgramState {
     bool CameraMouseMovementUpdateEnabled = true;
     glm::vec3 roomPosition = glm::vec3(0.0f);
     float roomScale = 0.5f;
-    glm::vec3 horsePosition = glm::vec3(0.0f);
-    float horseScale = 0.5f;
+    glm::vec3 horsePosition = glm::vec3(-37.0f, 0.0f, -35.0f);
+    float horseScale = 0.05f;
     PointLight pointLight1;
     PointLight pointLight2;
     PointLight pointLight3;
@@ -272,8 +272,8 @@ int main() {
         roomModel.Draw(ourShader);
 
         model = glm::mat4(1.0f);
-        model = glm::translate(model, glm::vec3(-37.0f, 0.0f, -35.0f));
-        model = glm::scale(model, glm::vec3(0.05f));
+        model = glm::translate(model, programState->horsePosition);
+        model = glm::scale(model, glm::vec3(programState->horseScale));
         ourShader.setMat4("model", model);
         horseModel.Draw(ourShader);
 
