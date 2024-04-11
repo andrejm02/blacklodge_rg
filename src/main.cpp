@@ -54,7 +54,7 @@ struct PointLight {
 struct ProgramState {
     glm::vec3 clearColor = glm::vec3(0);
     bool ImGuiEnabled = false;
-    int grayscaleEnabled = 1;
+    bool grayscaleEnabled = false;
     Camera camera;
     bool CameraMouseMovementUpdateEnabled = true;
     glm::vec3 roomPosition = glm::vec3(0.0f);
@@ -241,7 +241,7 @@ int main() {
     screenShader.use();
 
     screenShader.setInt("screenTexture", 0);
-    screenShader.setInt("grayscaleEnabled", programState->grayscaleEnabled);
+    screenShader.setBool("grayscaleEnabled", programState->grayscaleEnabled);
 
     //framebuffer
     unsigned int fbo;
@@ -358,7 +358,7 @@ int main() {
         glClear(GL_COLOR_BUFFER_BIT);
 
         screenShader.use();
-        screenShader.setInt("grayscaleEnabled", programState->grayscaleEnabled);
+        screenShader.setBool("grayscaleEnabled", programState->grayscaleEnabled);
         glBindVertexArray(quadVAO);
         glBindTexture(GL_TEXTURE_2D, textureColorbuffer);
         glDrawArrays(GL_TRIANGLES, 0, 6);
@@ -476,8 +476,8 @@ void key_callback(GLFWwindow *window, int key, int scancode, int action, int mod
     if(key == GLFW_KEY_F && action == GLFW_PRESS){
         if(glfwGetKey(window, GLFW_KEY_F) == GLFW_PRESS)
             if(programState->grayscaleEnabled)
-                programState->grayscaleEnabled = 0;
+                programState->grayscaleEnabled = false;
             else
-                programState->grayscaleEnabled = 1;
+                programState->grayscaleEnabled = true;
     }
 }
