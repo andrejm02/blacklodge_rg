@@ -265,8 +265,8 @@ int main() {
     unsigned int transparentTexture = loadTexture(FileSystem::getPath("resources/textures/light.png").c_str());
 
     vector<glm::vec3> lights{
-        glm::vec3(3.1f, 0.5f, -3.5f),
-        glm::vec3(3.1f, 0.5f, -3.9f)
+        glm::vec3(-39.1f, 4.54f, -30.0f),
+        glm::vec3(-35.1f, 4.54f, -30.0f)
     };
 
     blendingShader.use();
@@ -383,16 +383,6 @@ int main() {
         ourShader.setMat4("model", model);
         horseModel.Draw(ourShader);
 
-        std::sort(lights.begin(), lights.end(), [cameraPosition = programState->camera.Position](const glm::vec3& a, const glm::vec3& b) {
-                                                                float d1 = glm::distance(a, cameraPosition);
-                                                                float d2 = glm::distance(b, cameraPosition);
-                                                                std::cout << a.x << " " << a.y << " " << a.z << " " << d1 << "|";
-                                                                std::cout << b.x << " " << b.y << " " << b.z << " " << d2 << '\n';
-                                                                return d1 > d2;
-        });
-
-        //std::cout << lights[0].x << " " << lights[0].y << " " << lights[0].z << '\n';
-
         glDisable(GL_CULL_FACE);
         blendingShader.use();
         blendingShader.setMat4("projection", projection);
@@ -400,14 +390,22 @@ int main() {
 
         glBindVertexArray(transparentVAO);
         glBindTexture(GL_TEXTURE_2D, transparentTexture);
-        for(const glm::vec3& l : lights){
+        for(int i = 0; i < lights.size(); i++){
             model = glm::mat4(1.0f);
+            model = glm::translate(model, lights[i]);
             model = glm::rotate(model, glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
             model = glm::scale(model, glm::vec3(10.0f));
-            model = glm::translate(model, l);
+            //lights[i] = glm::vec3(model * glm::vec4(1.0f));
+            //std::cout << lights[i].x << " " << lights[i].y << " " << lights[i].z << '\n';
             blendingShader.setMat4("model", model);
             glDrawArrays(GL_TRIANGLES, 0, 6);
         }
+
+        std::sort(lights.begin(), lights.end(), [cameraPosition = programState->camera.Position](const glm::vec3& a, const glm::vec3& b) {
+            float d1 = glm::distance(a, cameraPosition);
+            float d2 = glm::distance(b, cameraPosition);
+            return d1 > d2;
+        });
 
         blendingShader.setMat4("model", model);
         glDrawArrays(GL_TRIANGLES, 0, 6);

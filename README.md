@@ -7,3 +7,11 @@ Projekat iz racunarske grafike, skelet koriscen sa: https://github.com/matf-racu
 3. Main se nalazi u src/main.cpp
 4. Cpp fajlovi idu u src folder
 7. ALT+SHIFT+F10 -> blacklodge_rg -> run
+
+# Kontrole
+`W` - kretanje napred
+`S` - kretanje unazad
+`A` - kretanje ulevo
+`D` - kretanje udesno
+
+`F` - grayscale toggle
