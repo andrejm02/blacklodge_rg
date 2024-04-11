@@ -15,3 +15,4 @@ Projekat iz racunarske grafike, skelet koriscen sa: https://github.com/matf-racu
 `D` - kretanje udesno
 
 `F` - grayscale toggle
+

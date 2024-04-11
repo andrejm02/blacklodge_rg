@@ -146,9 +146,6 @@ int main() {
         return -1;
     }
 
-    // tell stb_image.h to flip loaded textureColorbuffer's on the y-axis (before loading model).
-    //stbi_set_flip_vertically_on_load(true);
-
     programState = new ProgramState;
     programState->LoadFromFile("resources/program_state.txt");
     if (programState->ImGuiEnabled) {
@@ -388,6 +385,12 @@ int main() {
         blendingShader.setMat4("projection", projection);
         blendingShader.setMat4("view", view);
 
+        std::sort(lights.begin(), lights.end(), [cameraPosition = programState->camera.Position](const glm::vec3& a, const glm::vec3& b) {
+            float d1 = glm::distance(a, cameraPosition);
+            float d2 = glm::distance(b, cameraPosition);
+            return d1 > d2;
+        });
+
         glBindVertexArray(transparentVAO);
         glBindTexture(GL_TEXTURE_2D, transparentTexture);
         for(int i = 0; i < lights.size(); i++){
@@ -395,20 +398,12 @@ int main() {
             model = glm::translate(model, lights[i]);
             model = glm::rotate(model, glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
             model = glm::scale(model, glm::vec3(10.0f));
-            //lights[i] = glm::vec3(model * glm::vec4(1.0f));
-            //std::cout << lights[i].x << " " << lights[i].y << " " << lights[i].z << '\n';
             blendingShader.setMat4("model", model);
             glDrawArrays(GL_TRIANGLES, 0, 6);
         }
 
-        std::sort(lights.begin(), lights.end(), [cameraPosition = programState->camera.Position](const glm::vec3& a, const glm::vec3& b) {
-            float d1 = glm::distance(a, cameraPosition);
-            float d2 = glm::distance(b, cameraPosition);
-            return d1 > d2;
-        });
-
-        blendingShader.setMat4("model", model);
-        glDrawArrays(GL_TRIANGLES, 0, 6);
+        //blendingShader.setMat4("model", model);
+        //glDrawArrays(GL_TRIANGLES, 0, 6);
 
         glEnable(GL_CULL_FACE);
 
@@ -507,7 +502,6 @@ void DrawImGui(ProgramState *programState) {
         ImGui::DragFloat("Room scale", &programState->roomScale, 0.05, 0.1, 4.0);
         ImGui::DragFloat3("Horse position", (float*)&programState->horsePosition);
         ImGui::DragFloat("Horse scale", &programState->horseScale, 0.05, 0.1, 4.0);
-        ImGui::DragFloat3("Lightbeam position", (float*)&programState->lightbeamPos);
 
         ImGui::End();
     }
