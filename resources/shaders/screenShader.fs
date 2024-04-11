@@ -5,10 +5,10 @@ out vec4 FragColor;
 in vec2 TexCoords;
 
 uniform sampler2D screenTexture;
-uniform int greyscaleEnabled;
+uniform int grayscaleEnabled;
 
 void main(){
-if (greyscaleEnabled == 0){
+if (grayscaleEnabled == 0){
     vec3 col = texture(screenTexture, TexCoords).rgb;
     FragColor = vec4(col, 1.0f);
 }else{

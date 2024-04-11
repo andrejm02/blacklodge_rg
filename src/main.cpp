@@ -54,7 +54,7 @@ struct PointLight {
 struct ProgramState {
     glm::vec3 clearColor = glm::vec3(0);
     bool ImGuiEnabled = false;
-    int greyscaleEnabled = 1;
+    int grayscaleEnabled = 1;
     Camera camera;
     bool CameraMouseMovementUpdateEnabled = true;
     glm::vec3 roomPosition = glm::vec3(0.0f);
@@ -78,7 +78,7 @@ void ProgramState::SaveToFile(std::string filename) {
         << clearColor.g << '\n'
         << clearColor.b << '\n'
         << ImGuiEnabled << '\n'
-        << greyscaleEnabled << '\n'
+        << grayscaleEnabled << '\n'
         << camera.Position.x << '\n'
         << camera.Position.y << '\n'
         << camera.Position.z << '\n'
@@ -94,7 +94,7 @@ void ProgramState::LoadFromFile(std::string filename) {
            >> clearColor.g
            >> clearColor.b
            >> ImGuiEnabled
-           >> greyscaleEnabled
+           >> grayscaleEnabled
            >> camera.Position.x
            >> camera.Position.y
            >> camera.Position.z
@@ -241,7 +241,7 @@ int main() {
     screenShader.use();
 
     screenShader.setInt("screenTexture", 0);
-    screenShader.setInt("greyscaleEnabled", programState->greyscaleEnabled);
+    screenShader.setInt("grayscaleEnabled", programState->grayscaleEnabled);
 
     //framebuffer
     unsigned int fbo;
@@ -358,7 +358,7 @@ int main() {
         glClear(GL_COLOR_BUFFER_BIT);
 
         screenShader.use();
-        screenShader.setInt("greyscaleEnabled", programState->greyscaleEnabled);
+        screenShader.setInt("grayscaleEnabled", programState->grayscaleEnabled);
         glBindVertexArray(quadVAO);
         glBindTexture(GL_TEXTURE_2D, textureColorbuffer);
         glDrawArrays(GL_TRIANGLES, 0, 6);
@@ -438,7 +438,7 @@ void DrawImGui(ProgramState *programState) {
 
     {
         ImGui::Begin("The Black Lodge");
-        ImGui::Text("Press 'F' for greyscale mode");
+        ImGui::Text("Press 'F' for grayscale mode");
         ImGui::ColorEdit3("Background color", (float *) &programState->clearColor);
         ImGui::DragFloat3("Room position", (float*)&programState->roomPosition);
         ImGui::DragFloat("Room scale", &programState->roomScale, 0.05, 0.1, 4.0);
@@ -475,9 +475,9 @@ void key_callback(GLFWwindow *window, int key, int scancode, int action, int mod
 
     if(key == GLFW_KEY_F && action == GLFW_PRESS){
         if(glfwGetKey(window, GLFW_KEY_F) == GLFW_PRESS)
-            if(programState->greyscaleEnabled)
-                programState->greyscaleEnabled = 0;
+            if(programState->grayscaleEnabled)
+                programState->grayscaleEnabled = 0;
             else
-                programState->greyscaleEnabled = 1;
+                programState->grayscaleEnabled = 1;
     }
 }
