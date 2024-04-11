@@ -54,6 +54,7 @@ struct PointLight {
 struct ProgramState {
     glm::vec3 clearColor = glm::vec3(0);
     bool ImGuiEnabled = false;
+    int greyscaleEnabled = 1;
     Camera camera;
     bool CameraMouseMovementUpdateEnabled = true;
     glm::vec3 roomPosition = glm::vec3(0.0f);
@@ -77,6 +78,7 @@ void ProgramState::SaveToFile(std::string filename) {
         << clearColor.g << '\n'
         << clearColor.b << '\n'
         << ImGuiEnabled << '\n'
+        << greyscaleEnabled << '\n'
         << camera.Position.x << '\n'
         << camera.Position.y << '\n'
         << camera.Position.z << '\n'
@@ -92,6 +94,7 @@ void ProgramState::LoadFromFile(std::string filename) {
            >> clearColor.g
            >> clearColor.b
            >> ImGuiEnabled
+           >> greyscaleEnabled
            >> camera.Position.x
            >> camera.Position.y
            >> camera.Position.z
@@ -140,7 +143,7 @@ int main() {
         return -1;
     }
 
-    // tell stb_image.h to flip loaded texture's on the y-axis (before loading model).
+    // tell stb_image.h to flip loaded textureColorbuffer's on the y-axis (before loading model).
     //stbi_set_flip_vertically_on_load(true);
 
     programState = new ProgramState;
@@ -173,6 +176,7 @@ int main() {
     // build and compile shaders
     // -------------------------
     Shader ourShader("resources/shaders/2.model_lighting.vs", "resources/shaders/2.model_lighting.fs");
+    Shader screenShader("resources/shaders/screenShader.vs", "resources/shaders/screenShader.fs");
 
     // load models
     // -----------
@@ -211,6 +215,64 @@ int main() {
     pointLight3.constant = 0.5f;
     pointLight3.linear = 0.09f;
     pointLight3.quadratic = 0.0036f;
+
+    float quadVertices[] = {
+            -1.0f,  1.0f,   0.0f, 1.0f,
+            -1.0f, -1.0f,   0.0f, 0.0f,
+             1.0f, -1.0f,  1.0f,0.0f,
+
+             -1.0f,  1.0f,  0.0f, 1.0f,
+              1.0f, -1.0f,  1.0f, 0.0f,
+               1.0f, 1.0f,  1.0f, 1.0f
+
+    };
+
+    unsigned int quadVAO, quadVBO;
+    glGenVertexArrays(1, &quadVAO);
+    glGenBuffers(1, &quadVBO);
+    glBindVertexArray(quadVAO);
+    glBindBuffer(GL_ARRAY_BUFFER, quadVBO);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(quadVertices), &quadVertices, GL_STATIC_DRAW);
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)0);
+    glEnableVertexAttribArray(1);
+    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)(2 * sizeof(float)));
+
+    screenShader.use();
+
+    screenShader.setInt("screenTexture", 0);
+    screenShader.setInt("greyscaleEnabled", programState->greyscaleEnabled);
+
+    //framebuffer
+    unsigned int fbo;
+    glGenFramebuffers(1, &fbo);
+
+    glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+
+    unsigned int textureColorbuffer;
+    glGenTextures(1, &textureColorbuffer);
+    glBindTexture(GL_TEXTURE_2D, textureColorbuffer);
+
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, SCR_WIDTH, SCR_HEIGHT, 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
+
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, textureColorbuffer, 0);
+
+    unsigned int rbo;
+    glGenRenderbuffers(1, &rbo);
+    glBindRenderbuffer(GL_RENDERBUFFER, rbo);
+
+    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, SCR_WIDTH, SCR_HEIGHT);
+    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, rbo);
+
+    if(glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE){
+        std::cout << "Framebuffer works!";
+    }
+
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
     // draw in wireframe
     //glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 
@@ -228,10 +290,13 @@ int main() {
         processInput(window);
 
 
+        glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+        glEnable(GL_DEPTH_TEST);
+
         // render
         // ------
         glClearColor(programState->clearColor.r, programState->clearColor.g, programState->clearColor.b, 1.0f);
-        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
 
         // don't forget to enable shader before setting uniforms
 
@@ -287,7 +352,16 @@ int main() {
         if (programState->ImGuiEnabled)
             DrawImGui(programState);
 
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+        glDisable(GL_DEPTH_TEST);
 
+        glClear(GL_COLOR_BUFFER_BIT);
+
+        screenShader.use();
+        screenShader.setInt("greyscaleEnabled", programState->greyscaleEnabled);
+        glBindVertexArray(quadVAO);
+        glBindTexture(GL_TEXTURE_2D, textureColorbuffer);
+        glDrawArrays(GL_TRIANGLES, 0, 6);
 
         // glfw: swap buffers and poll IO events (keys pressed/released, mouse moved etc.)
         // -------------------------------------------------------------------------------
@@ -328,6 +402,7 @@ void framebuffer_size_callback(GLFWwindow *window, int width, int height) {
     // make sure the viewport matches the new window dimensions; note that width and
     // height will be significantly larger than specified on retina displays.
     glViewport(0, 0, width, height);
+
 }
 
 // glfw: whenever the mouse moves, this callback is called
@@ -363,6 +438,7 @@ void DrawImGui(ProgramState *programState) {
 
     {
         ImGui::Begin("The Black Lodge");
+        ImGui::Text("Press 'F' for greyscale mode");
         ImGui::ColorEdit3("Background color", (float *) &programState->clearColor);
         ImGui::DragFloat3("Room position", (float*)&programState->roomPosition);
         ImGui::DragFloat("Room scale", &programState->roomScale, 0.05, 0.1, 4.0);
@@ -395,5 +471,13 @@ void key_callback(GLFWwindow *window, int key, int scancode, int action, int mod
         } else {
             glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
         }
+    }
+
+    if(key == GLFW_KEY_F && action == GLFW_PRESS){
+        if(glfwGetKey(window, GLFW_KEY_F) == GLFW_PRESS)
+            if(programState->greyscaleEnabled)
+                programState->greyscaleEnabled = 0;
+            else
+                programState->greyscaleEnabled = 1;
     }
 }
