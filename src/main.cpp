@@ -26,6 +26,8 @@ void processInput(GLFWwindow *window);
 
 void key_callback(GLFWwindow *window, int key, int scancode, int action, int mods);
 
+unsigned int loadTexture(char const* path);
+
 // settings
 const unsigned int SCR_WIDTH = 800;
 const unsigned int SCR_HEIGHT = 600;
@@ -61,6 +63,7 @@ struct ProgramState {
     float roomScale = 0.5f;
     glm::vec3 horsePosition = glm::vec3(-37.0f, 0.0f, -35.0f);
     float horseScale = 0.05f;
+    glm::vec3 lightbeamPos = glm::vec3(0.0f, 0.0f, 0.0f);
     PointLight pointLight1;
     PointLight pointLight2;
     PointLight pointLight3;
@@ -157,8 +160,6 @@ int main() {
     ImGuiIO &io = ImGui::GetIO();
     (void) io;
 
-
-
     ImGui_ImplGlfw_InitForOpenGL(window, true);
     ImGui_ImplOpenGL3_Init("#version 330 core");
 
@@ -177,6 +178,7 @@ int main() {
     // -------------------------
     Shader ourShader("resources/shaders/2.model_lighting.vs", "resources/shaders/2.model_lighting.fs");
     Shader screenShader("resources/shaders/screenShader.vs", "resources/shaders/screenShader.fs");
+    Shader blendingShader("resources/shaders/blendingShader.vs", "resources/shaders/blendingShader.fs");
 
     // load models
     // -----------
@@ -198,9 +200,9 @@ int main() {
 
     PointLight& pointLight2 = programState->pointLight2;
     pointLight2.position = glm::vec3(20.0f, 8.7f, 26.5f);
-    pointLight2.ambient = glm::vec3(0.2, 0.2, 0.2);
-    pointLight2.diffuse = glm::vec3(0.6, 0.6, 0.6);
-    pointLight2.specular = glm::vec3(1.0, 1.0, 1.0);
+    pointLight2.ambient = glm::vec3(0.0, 0.0, 0.2);
+    pointLight2.diffuse = glm::vec3(0.0, 0.0, 0.6);
+    pointLight2.specular = glm::vec3(0.0, 0.0, 1.0);
 
     pointLight2.constant = 0.5f;
     pointLight2.linear = 0.09f;
@@ -227,6 +229,16 @@ int main() {
 
     };
 
+    float transparentVertices[] = {
+            0.0f,  0.5f, 0.0f, 0.0f, 0.0f,
+            0.0f, -0.5f, 0.0f, 0.0f, 1.0f,
+            1.0f,-0.5f,0.0f,1.0f, 1.0f,
+
+             0.0f, 0.5f, 0.0f, 0.0f, 0.0f,
+             1.0f, -0.5f, 0.0f, 1.0f, 1.0f,
+             1.0f, 0.5f, 0.0f, 1.0f, 0.0f
+    };
+
     unsigned int quadVAO, quadVBO;
     glGenVertexArrays(1, &quadVAO);
     glGenBuffers(1, &quadVBO);
@@ -237,6 +249,28 @@ int main() {
     glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)0);
     glEnableVertexAttribArray(1);
     glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)(2 * sizeof(float)));
+
+    unsigned int transparentVAO, transparentVBO;
+    glGenVertexArrays(1, &transparentVAO);
+    glGenBuffers(1, &transparentVBO);
+    glBindVertexArray(transparentVAO);
+    glBindBuffer(GL_ARRAY_BUFFER, transparentVBO);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(transparentVertices), transparentVertices, GL_STATIC_DRAW);
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)0);
+    glEnableVertexAttribArray(1);
+    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(3 * sizeof(float)));
+    glBindVertexArray(0);
+
+    unsigned int transparentTexture = loadTexture(FileSystem::getPath("resources/textures/light.png").c_str());
+
+    vector<glm::vec3> lights{
+        glm::vec3(3.1f, 0.5f, -3.5f),
+        glm::vec3(3.1f, 0.5f, -3.9f)
+    };
+
+    blendingShader.use();
+    blendingShader.setInt("texture1", 0);
 
     screenShader.use();
 
@@ -349,6 +383,37 @@ int main() {
         ourShader.setMat4("model", model);
         horseModel.Draw(ourShader);
 
+        std::sort(lights.begin(), lights.end(), [cameraPosition = programState->camera.Position](const glm::vec3& a, const glm::vec3& b) {
+                                                                float d1 = glm::distance(a, cameraPosition);
+                                                                float d2 = glm::distance(b, cameraPosition);
+                                                                std::cout << a.x << " " << a.y << " " << a.z << " " << d1 << "|";
+                                                                std::cout << b.x << " " << b.y << " " << b.z << " " << d2 << '\n';
+                                                                return d1 > d2;
+        });
+
+        //std::cout << lights[0].x << " " << lights[0].y << " " << lights[0].z << '\n';
+
+        glDisable(GL_CULL_FACE);
+        blendingShader.use();
+        blendingShader.setMat4("projection", projection);
+        blendingShader.setMat4("view", view);
+
+        glBindVertexArray(transparentVAO);
+        glBindTexture(GL_TEXTURE_2D, transparentTexture);
+        for(const glm::vec3& l : lights){
+            model = glm::mat4(1.0f);
+            model = glm::rotate(model, glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+            model = glm::scale(model, glm::vec3(10.0f));
+            model = glm::translate(model, l);
+            blendingShader.setMat4("model", model);
+            glDrawArrays(GL_TRIANGLES, 0, 6);
+        }
+
+        blendingShader.setMat4("model", model);
+        glDrawArrays(GL_TRIANGLES, 0, 6);
+
+        glEnable(GL_CULL_FACE);
+
         if (programState->ImGuiEnabled)
             DrawImGui(programState);
 
@@ -444,6 +509,7 @@ void DrawImGui(ProgramState *programState) {
         ImGui::DragFloat("Room scale", &programState->roomScale, 0.05, 0.1, 4.0);
         ImGui::DragFloat3("Horse position", (float*)&programState->horsePosition);
         ImGui::DragFloat("Horse scale", &programState->horseScale, 0.05, 0.1, 4.0);
+        ImGui::DragFloat3("Lightbeam position", (float*)&programState->lightbeamPos);
 
         ImGui::End();
     }
@@ -480,4 +546,41 @@ void key_callback(GLFWwindow *window, int key, int scancode, int action, int mod
             else
                 programState->grayscaleEnabled = true;
     }
+}
+
+unsigned int loadTexture(char const* path){
+    unsigned int textureID;
+    glGenTextures(1, &textureID);
+
+    stbi_set_flip_vertically_on_load(true);
+
+    int width, height, nrComponents;
+    unsigned char *data = stbi_load(path, &width, &height, &nrComponents, 0);
+    if(data){
+        GLenum format;
+        if(nrComponents == 1)
+            format = GL_RED;
+        else if(nrComponents == 3)
+            format = GL_RGB;
+        else if(nrComponents == 4)
+            format = GL_RGBA;
+
+        glBindTexture(GL_TEXTURE_2D, textureID);
+        glTexImage2D(GL_TEXTURE_2D, 0, format, width, height, 0 ,format, GL_UNSIGNED_BYTE, data);
+        glGenerateMipmap(GL_TEXTURE_2D);
+
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, format == GL_RGBA ? GL_CLAMP_TO_EDGE : GL_REPEAT);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, format == GL_RGBA ? GL_CLAMP_TO_EDGE : GL_REPEAT);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+        stbi_image_free(data);
+    }else{
+        std:;cout << "Texture failed to load at path: " << path << '\n';
+        stbi_image_free(data);
+    }
+
+    stbi_set_flip_vertically_on_load(false);
+
+    return textureID;
 }
