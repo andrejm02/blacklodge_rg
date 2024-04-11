@@ -16,3 +16,7 @@ Projekat iz racunarske grafike, skelet koriscen sa: https://github.com/matf-racu
 
 `F` - grayscale toggle
 
+# Autori modela
+
+[The Black Lodge - pan.stasian](https://sketchfab.com/3d-models/twin-peaks-black-lodge-remake-low-poly-22fc860b46e441f7a7688492da425f45)
+[The White Horse - Mohammed.Dael.Alshogaa](https://sketchfab.com/3d-models/horse-bcd3e5f5458c4c47a7cb27d0e2b86462)
