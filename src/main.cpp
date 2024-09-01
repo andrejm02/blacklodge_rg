@@ -487,8 +487,6 @@ int main() {
         glBindFramebuffer(GL_FRAMEBUFFER, fbo);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         hdrShader.use();
-        //hdrShader.setBool("grayscaleEnabled", programState->grayscaleEnabled);
-        //glDisable(GL_DEPTH_TEST);
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, hdrColorBuffers[0]);
         glActiveTexture(GL_TEXTURE1);
@@ -586,7 +584,14 @@ void DrawImGui(ProgramState *programState) {
 
 
     {
-        ImGui::Begin("The Black Lodge");
+        if(programState->grayscaleEnabled){
+            ImGui::Begin("The Black Lodge");
+            ImGui::Text("Is it future or is it past?");
+        }else{
+            ImGui::Begin("egdoL kcalB ehT");
+            ImGui::Text("?tsap ti si ro erutuf ti sI");
+        }
+
         ImGui::Text("Press 'F' for grayscale mode");
         ImGui::Text("Press 'H' for hdr");
         ImGui::Text("Press 'B' for bloom");
