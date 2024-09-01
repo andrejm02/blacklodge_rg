@@ -57,6 +57,9 @@ struct ProgramState {
     glm::vec3 clearColor = glm::vec3(0);
     bool ImGuiEnabled = false;
     bool grayscaleEnabled = false;
+    bool hdr = true;
+    bool bloom = true;
+    float exposure = 0.1f;
     Camera camera;
     bool CameraMouseMovementUpdateEnabled = true;
     glm::vec3 roomPosition = glm::vec3(0.0f);
@@ -176,6 +179,8 @@ int main() {
     Shader ourShader("resources/shaders/2.model_lighting.vs", "resources/shaders/2.model_lighting.fs");
     Shader screenShader("resources/shaders/screenShader.vs", "resources/shaders/screenShader.fs");
     Shader blendingShader("resources/shaders/blendingShader.vs", "resources/shaders/blendingShader.fs");
+    Shader hdrShader("resources/shaders/hdr.vs", "resources/shaders/hdr.fs");
+    Shader blurShader("resources/shaders/blur.vs", "resources/shaders/blur.fs");
 
     // load models
     // -----------
@@ -188,7 +193,7 @@ int main() {
     PointLight& pointLight1 = programState->pointLight1;
     pointLight1.position = glm::vec3(5.6f, 8.7f, 26.5f);
     pointLight1.ambient = glm::vec3(0.2, 0.2, 0.2);
-    pointLight1.diffuse = glm::vec3(0.6, 0.6, 0.6);
+    pointLight1.diffuse = glm::vec3(6.0, 6.0, 6.0);
     pointLight1.specular = glm::vec3(1.0, 1.0, 1.0);
 
     pointLight1.constant = 0.5f;
@@ -198,7 +203,7 @@ int main() {
     PointLight& pointLight2 = programState->pointLight2;
     pointLight2.position = glm::vec3(20.0f, 8.7f, 26.5f);
     pointLight2.ambient = glm::vec3(0.0, 0.0, 0.2);
-    pointLight2.diffuse = glm::vec3(0.0, 0.0, 0.6);
+    pointLight2.diffuse = glm::vec3(0.0, 0.0, 6.0);
     pointLight2.specular = glm::vec3(0.0, 0.0, 1.0);
 
     pointLight2.constant = 0.5f;
@@ -208,7 +213,7 @@ int main() {
     PointLight& pointLight3 = programState->pointLight3;
     pointLight3.position = glm::vec3(-37.0f, 4.0f, -35.0f);
     pointLight3.ambient = glm::vec3(0.2, 0.2, 0.2);
-    pointLight3.diffuse = glm::vec3(0.6, 0.6, 0.6);
+    pointLight3.diffuse = glm::vec3(6.0, 6.0, 6.0);
     pointLight3.specular = glm::vec3(1.0, 1.0, 1.0);
 
     pointLight3.constant = 0.5f;
@@ -216,14 +221,10 @@ int main() {
     pointLight3.quadratic = 0.0036f;
 
     float quadVertices[] = {
-            -1.0f,  1.0f,   0.0f, 1.0f,
-            -1.0f, -1.0f,   0.0f, 0.0f,
-             1.0f, -1.0f,  1.0f,0.0f,
-
-             -1.0f,  1.0f,  0.0f, 1.0f,
-              1.0f, -1.0f,  1.0f, 0.0f,
-               1.0f, 1.0f,  1.0f, 1.0f
-
+            -1.0f,  1.0f, 0.0f,   0.0f, 1.0f,
+            -1.0f, -1.0f, 0.0f,   0.0f, 0.0f,
+             1.0f, 1.0f, 0.0f,  1.0f,1.0f,
+             1.0f,  -1.0f, 0.0f,  1.0f, 0.0f
     };
 
     float transparentVertices[] = {
@@ -243,9 +244,9 @@ int main() {
     glBindBuffer(GL_ARRAY_BUFFER, quadVBO);
     glBufferData(GL_ARRAY_BUFFER, sizeof(quadVertices), &quadVertices, GL_STATIC_DRAW);
     glEnableVertexAttribArray(0);
-    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)0);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)0);
     glEnableVertexAttribArray(1);
-    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)(2 * sizeof(float)));
+    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(3 * sizeof(float)));
 
     unsigned int transparentVAO, transparentVBO;
     glGenVertexArrays(1, &transparentVAO);
@@ -274,35 +275,84 @@ int main() {
     screenShader.setInt("screenTexture", 0);
     screenShader.setBool("grayscaleEnabled", programState->grayscaleEnabled);
 
-    //framebuffer
-    unsigned int fbo;
-    glGenFramebuffers(1, &fbo);
-
-    glBindFramebuffer(GL_FRAMEBUFFER, fbo);
-
-    unsigned int textureColorbuffer;
-    glGenTextures(1, &textureColorbuffer);
-    glBindTexture(GL_TEXTURE_2D, textureColorbuffer);
-
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, SCR_WIDTH, SCR_HEIGHT, 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
-
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-
-    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, textureColorbuffer, 0);
+    //hdr
+    unsigned int hdrFBO;
+    glGenFramebuffers(1, &hdrFBO);
+    glBindFramebuffer(GL_FRAMEBUFFER, hdrFBO);
+    unsigned int hdrColorBuffers[2];
+    glGenTextures(2, hdrColorBuffers);
+    for(unsigned int i = 0; i < 2; i++) {
+        glBindTexture(GL_TEXTURE_2D, hdrColorBuffers[i]);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, SCR_WIDTH, SCR_HEIGHT, 0, GL_RGBA, GL_FLOAT, NULL);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0 + i, GL_TEXTURE_2D, hdrColorBuffers[i], 0);
+    }
 
     unsigned int rbo;
     glGenRenderbuffers(1, &rbo);
     glBindRenderbuffer(GL_RENDERBUFFER, rbo);
 
     glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, SCR_WIDTH, SCR_HEIGHT);
-    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, rbo);
+    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, rbo);
+
+    unsigned int attachments[2] = {GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1};
+    glDrawBuffers(2, attachments);
+
+    if(glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE){
+        std::cout << "Framebuffer works!";
+    }
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+    unsigned int pingpongFBO[2];
+    unsigned int pingpongColorBuffers[2];
+    glGenFramebuffers(2, pingpongFBO);
+    glGenTextures(2, pingpongColorBuffers);
+    for(unsigned int i = 0; i < 2; i++){
+        glBindFramebuffer(GL_FRAMEBUFFER, pingpongFBO[i]);
+        glBindTexture(GL_TEXTURE_2D, pingpongColorBuffers[i]);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, SCR_WIDTH, SCR_HEIGHT, 0, GL_RGBA, GL_FLOAT, NULL);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, pingpongColorBuffers[i], 0);
+        if(glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE){
+            std::cout << "Framebuffer works!";
+        }
+    }
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+    //framebuffer
+    unsigned int fbo;
+    glGenFramebuffers(1, &fbo);
+    glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+
+    unsigned int textureColorbuffer;
+    glGenTextures(1, &textureColorbuffer);
+    glBindTexture(GL_TEXTURE_2D, textureColorbuffer);
+
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, SCR_WIDTH, SCR_HEIGHT, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, textureColorbuffer, 0);
 
     if(glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE){
         std::cout << "Framebuffer works!";
     }
 
-    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    //glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+    hdrShader.use();
+    hdrShader.setInt("scene", 0);
+    hdrShader.setInt("bloomBlur", 1);
+
+    blurShader.use();
+    blurShader.setInt("image", 0);
 
     // draw in wireframe
     //glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
@@ -321,13 +371,16 @@ int main() {
         processInput(window);
 
 
-        glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+        //glBindFramebuffer(GL_FRAMEBUFFER, fbo);
         glEnable(GL_DEPTH_TEST);
 
         // render
         // ------
         glClearColor(programState->clearColor.r, programState->clearColor.g, programState->clearColor.b, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
+
+        glBindFramebuffer(GL_FRAMEBUFFER, hdrFBO);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
         // don't forget to enable shader before setting uniforms
 
@@ -402,25 +455,63 @@ int main() {
             glDrawArrays(GL_TRIANGLES, 0, 6);
         }
 
-        //blendingShader.setMat4("model", model);
-        //glDrawArrays(GL_TRIANGLES, 0, 6);
-
         glEnable(GL_CULL_FACE);
 
         if (programState->ImGuiEnabled)
             DrawImGui(programState);
 
-        glBindFramebuffer(GL_FRAMEBUFFER, 0);
         glDisable(GL_DEPTH_TEST);
 
-        glClear(GL_COLOR_BUFFER_BIT);
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
-        screenShader.use();
-        screenShader.setBool("grayscaleEnabled", programState->grayscaleEnabled);
+        bool horizontal = true;
+        bool firstIteration = true;
+        blurShader.use();
+        unsigned int amount = 10;
+        for(unsigned int i = 0; i < amount; i++){
+            glBindFramebuffer(GL_FRAMEBUFFER, pingpongFBO[horizontal]);
+            blurShader.setBool("horizontal", horizontal);
+            glActiveTexture(GL_TEXTURE0);
+            glBindTexture(GL_TEXTURE_2D, firstIteration ? hdrColorBuffers[i] : pingpongColorBuffers[!horizontal]);
+
+            glBindVertexArray(quadVAO);
+            glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+            glBindVertexArray(0);
+
+            horizontal = !horizontal;
+            if(firstIteration){
+                firstIteration = false;
+            }
+        }
+
+        glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        hdrShader.use();
+        //hdrShader.setBool("grayscaleEnabled", programState->grayscaleEnabled);
+        //glDisable(GL_DEPTH_TEST);
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, hdrColorBuffers[0]);
+        glActiveTexture(GL_TEXTURE1);
+        glBindTexture(GL_TEXTURE_2D, pingpongColorBuffers[!horizontal]);
+        hdrShader.setInt("hdr", programState->hdr);
+        hdrShader.setInt("bloom", programState->bloom);
+        hdrShader.setFloat("exposure", programState->exposure);
         glBindVertexArray(quadVAO);
-        glBindTexture(GL_TEXTURE_2D, textureColorbuffer);
-        glDrawArrays(GL_TRIANGLES, 0, 6);
+        glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+        glBindVertexArray(0);
 
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        screenShader.use();
+        screenShader.setInt("grayscaleEnabled", programState->grayscaleEnabled);
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, textureColorbuffer);
+
+        glBindVertexArray(quadVAO);
+        glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+        glBindVertexArray(0);
+
+        glEnable(GL_DEPTH_TEST);
         // glfw: swap buffers and poll IO events (keys pressed/released, mouse moved etc.)
         // -------------------------------------------------------------------------------
         glfwSwapBuffers(window);
@@ -497,6 +588,9 @@ void DrawImGui(ProgramState *programState) {
     {
         ImGui::Begin("The Black Lodge");
         ImGui::Text("Press 'F' for grayscale mode");
+        ImGui::Text("Press 'H' for hdr");
+        ImGui::Text("Press 'B' for bloom");
+        ImGui::DragFloat("HDR exposure", &programState->exposure, 0.05, 0.1, 5.0);
         ImGui::ColorEdit3("Background color", (float *) &programState->clearColor);
         ImGui::DragFloat3("Room position", (float*)&programState->roomPosition);
         ImGui::DragFloat("Room scale", &programState->roomScale, 0.05, 0.1, 4.0);
@@ -538,6 +632,22 @@ void key_callback(GLFWwindow *window, int key, int scancode, int action, int mod
             else
                 programState->grayscaleEnabled = true;
     }
+
+    if(key == GLFW_KEY_H && action == GLFW_PRESS){
+        if(glfwGetKey(window, GLFW_KEY_H) == GLFW_PRESS)
+            if(programState->hdr)
+                programState->hdr = false;
+            else
+                programState->hdr = true;
+    }
+
+    if(key == GLFW_KEY_B && action == GLFW_PRESS){
+        if(glfwGetKey(window, GLFW_KEY_B) == GLFW_PRESS)
+            if(programState->bloom)
+                programState->bloom = false;
+            else
+                programState->bloom = true;
+    }
 }
 
 unsigned int loadTexture(char const* path){
@@ -568,7 +678,7 @@ unsigned int loadTexture(char const* path){
 
         stbi_image_free(data);
     }else{
-        std:;cout << "Texture failed to load at path: " << path << '\n';
+        std::cout << "Texture failed to load at path: " << path << '\n';
         stbi_image_free(data);
     }
 
